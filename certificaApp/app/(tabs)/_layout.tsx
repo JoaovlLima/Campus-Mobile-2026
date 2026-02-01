@@ -53,6 +53,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Feather name="user" size={24} color={color} />,
         }}
       />
+
+    {/* CONFIG */}
+      <Tabs.Screen
+        name="config"
+        options={{
+          title: 'Config',
+          tabBarIcon: ({ color }) => <Feather name="settings" size={24} color={color} />,
+        }}
+      />
     </Tabs>
+
   );
 }
