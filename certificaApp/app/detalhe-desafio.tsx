@@ -1,27 +1,82 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import React, { useState, useEffect } from 'react'; // <--- Adicione useEffect
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { ProgressoService } from '@/service/progresso';
+import { doc, getDoc } from 'firebase/firestore'; // <--- Importe o Firestore
+import { db } from '@/config/firebaseConfig'; // <--- Importe o banco
 
 export default function DetalheDesafio() {
   const router = useRouter();
-  const [link, setLink] = useState('');
+  const params = useLocalSearchParams(); 
+  
+  // ID da trilha (ex: 'sustentabilidade')
+  const trilhaId = params.id as string || 'sustentabilidade'; 
+  const tituloDesafio = params.titulo as string || 'Desafio Prático';
 
-  const handleEnviar = () => {
+  const [link, setLink] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  
+  // NOVO ESTADO: Para guardar as horas que vierem do banco
+  const [horasRecompensa, setHorasRecompensa] = useState(0); 
+
+  // --- NOVA BUSCA ---
+  // Busca quanto vale essa trilha assim que a tela abre
+  useEffect(() => {
+    const buscarHoras = async () => {
+      try {
+        const docRef = doc(db, "trilhas", trilhaId);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          // Pega o campo 'horasGanha' do banco
+          setHorasRecompensa(docSnap.data().horasGanha || 0);
+        }
+      } catch (error) {
+        console.log("Erro ao buscar horas da trilha", error);
+      }
+    };
+    buscarHoras();
+  }, [trilhaId]);
+
+  const handleEnviar = async () => {
     if (link.length < 3) {
       Alert.alert("Link necessário", "Por favor, cole um link ou anexe um arquivo.");
       return;
     }
-    Alert.alert("Sucesso! 🚀", "Sua evidência foi enviada para validação.");
-    router.replace('/(tabs)/certificacoes'); // Manda para a tela de certificados (opcional) ou volta
+
+    setEnviando(true);
+
+    try {
+      // O Service já sabe buscar as horas internamente para somar na conta do usuário.
+      // A gente não precisa passar 'horasRecompensa' aqui, o Service é autônomo.
+      await ProgressoService.concluirEtapa(trilhaId, 'desafio', horasRecompensa);
+
+      Alert.alert(
+        "Sucesso! 🚀", 
+        // Usamos a variável de estado só para mostrar na mensagem bonitinha
+        `Você garantiu +${horasRecompensa} horas complementares!`,
+        [
+            { 
+                text: "Ver Carteira", 
+                onPress: () => router.replace('/(tabs)/certificacoes') 
+            }
+        ]
+      );
+
+    } catch (error) {
+      Alert.alert("Erro", "Não foi possível enviar. Tente novamente.");
+      console.error(error);
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         
-        {/* Header do Desafio */}
         <LinearGradient
           colors={['#2B7FFF', '#9810FA']}
           start={{ x: 0, y: 0 }}
@@ -35,16 +90,30 @@ export default function DetalheDesafio() {
             </TouchableOpacity>
 
             <View style={styles.headerContent}>
-              <View style={styles.tagContainer}>
-                <Text style={styles.tagText}>ENTREGA FINAL</Text>
+              <View style={styles.rowTags}>
+                <View style={styles.tagContainer}>
+                  <Text style={styles.tagText}>ENTREGA FINAL</Text>
+                </View>
+                
+                {/* --- VISUALIZAÇÃO DAS HORAS AQUI --- */}
+                {horasRecompensa > 0 && (
+                    <View style={styles.hoursTag}>
+                        <Feather name="clock" size={10} color="#FFD700" />
+                        <Text style={styles.hoursText}>VALE {horasRecompensa}H</Text>
+                    </View>
+                )}
               </View>
-              <Text style={styles.title}>Desafio Prático ESG</Text>
-              <Text style={styles.partner}>Aplique os conceitos aprendidos</Text>
+
+              <Text style={styles.title}>{tituloDesafio}</Text>
+              <Text style={styles.partner}>
+                 {horasRecompensa > 0 
+                   ? `Complete para garantir suas ${horasRecompensa} horas.` 
+                   : 'Esta etapa libera sua certificação.'}
+              </Text>
             </View>
           </SafeAreaView>
         </LinearGradient>
 
-        {/* Formulário de Envio */}
         <View style={styles.body}>
           <View style={styles.submissionCard}>
             <Text style={styles.submissionLabel}>Cole o link do seu projeto</Text>
@@ -58,21 +127,28 @@ export default function DetalheDesafio() {
                 value={link}
                 onChangeText={setLink}
                 placeholderTextColor="#999"
+                autoCapitalize="none"
               />
             </View>
 
-            <TouchableOpacity style={styles.uploadButton}>
+            <TouchableOpacity style={styles.uploadButton} onPress={() => Alert.alert("Upload", "Abriria o seletor de arquivos.")}>
               <Feather name="upload" size={20} color="#2B7FFF" />
               <Text style={styles.uploadText}>Ou faça upload de arquivo (PDF/JPG)</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={handleEnviar}>
+            <TouchableOpacity onPress={handleEnviar} disabled={enviando}>
               <LinearGradient
-                colors={['#00C853', '#69F0AE']} // Botão verde de sucesso
+                colors={['#00C853', '#69F0AE']} 
                 style={styles.submitButton}
               >
-                <Text style={styles.submitButtonText}>ENVIAR ATIVIDADE</Text>
-                <Feather name="check-circle" size={20} color="#FFF" />
+                {enviando ? (
+                    <ActivityIndicator color="#FFF" />
+                ) : (
+                    <>
+                        <Text style={styles.submitButtonText}>ENVIAR E RECEBER HORAS</Text>
+                        <Feather name="check-circle" size={20} color="#FFF" />
+                    </>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -88,12 +164,14 @@ const styles = StyleSheet.create({
   backButton: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, marginTop: 10 },
   backText: { color: '#FFF', marginLeft: 8, fontSize: 16 },
   headerContent: { marginTop: 0 },
-  headerBackground: { 
-    paddingTop: 60, // AUMENTAMOS AQUI PARA EMPURRAR O CONTEÚDO PARA BAIXO
-    paddingBottom: 30 
-  },
-  tagContainer: { backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginBottom: 10 },
+  
+  // Estilos novos para as tags
+  rowTags: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  tagContainer: { backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   tagText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+  hoursTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.3)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#FFD700' },
+  hoursText: { color: '#FFD700', fontSize: 10, fontWeight: 'bold' },
+
   title: { color: '#FFF', fontSize: 24, fontWeight: 'bold', marginBottom: 5 },
   partner: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
   body: { padding: 24, marginTop: -30 },

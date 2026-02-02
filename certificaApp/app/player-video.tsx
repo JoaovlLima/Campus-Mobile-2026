@@ -16,7 +16,7 @@ export default function PlayerVideo() {
     // 1. O ID da trilha ('sustentabilidade')
     // 2. A etapa ('video')
     // 3. As horas que vale (2 horas - isso poderia vir do banco, mas hardcoded no MVP é ok)
-    await ProgressoService.concluirEtapa('sustentabilidade', 'video', 2);
+    await ProgressoService.concluirEtapa('sustentabilidade', 'video', 0);
     
     setLoading(false);
     router.back();

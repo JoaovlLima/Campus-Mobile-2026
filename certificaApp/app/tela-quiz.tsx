@@ -11,7 +11,7 @@ export default function TelaQuiz() {
   const handleAnswer = async (isCorrect: boolean) => {
     if (isCorrect) {
       // Passamos: trilha 'sustentabilidade', etapa 'quiz', ganha 1 hora
-      await ProgressoService.concluirEtapa('sustentabilidade', 'quiz', 1);
+      await ProgressoService.concluirEtapa('sustentabilidade', 'quiz', 0);
       
       Alert.alert(
         "Parabéns! 🎯",

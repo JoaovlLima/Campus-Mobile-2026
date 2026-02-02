@@ -8,12 +8,12 @@ import { ProgressoService } from '@/service/progresso'; // Ajuste o caminho se n
 
 export default function TrilhasScreen() {
   const router = useRouter();
-  
+
   const [listaTrilhas, setListaTrilhas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Agora guardamos o objeto geral (todas as trilhas do user)
-  const [progressoGeral, setProgressoGeral] = useState<any>({}); 
+  const [progressoGeral, setProgressoGeral] = useState<any>({});
 
   useFocusEffect(
     useCallback(() => {
@@ -27,12 +27,12 @@ export default function TrilhasScreen() {
           // B. Busca as trilhas disponíveis (Título, Cor...)
           const q = query(collection(db, "trilhas"), orderBy("ordem"));
           const querySnapshot = await getDocs(q);
-          
+
           const trilhasDoBanco: any[] = [];
           querySnapshot.forEach((doc) => {
             trilhasDoBanco.push({ id: doc.id, ...doc.data() });
           });
-          
+
           setListaTrilhas(trilhasDoBanco);
         } catch (e) {
           console.error("Erro ao carregar:", e);
@@ -57,7 +57,7 @@ export default function TrilhasScreen() {
     if (dadosTrilha.video === 'concluido') concluidos++;
     if (dadosTrilha.quiz === 'concluido') concluidos++;
     if (dadosTrilha.desafio === 'concluido') concluidos++;
-    
+
     return concluidos / 3; // Supondo 3 etapas por trilha
   };
 
@@ -65,91 +65,94 @@ export default function TrilhasScreen() {
     const dadosTrilha = progressoGeral[trilhaId];
 
     if (!dadosTrilha) return 'Iniciar Trilha'; // Se não começou
-    
+
     if (dadosTrilha.video !== 'concluido') return 'Vídeo: Fundamentos';
     if (dadosTrilha.quiz !== 'concluido') return 'Quiz de Validação';
     if (dadosTrilha.desafio !== 'concluido') return 'Desafio Prático';
-    
+
     return 'Concluída! 🏆';
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
+
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Trilhas de Competências</Text>
           <Text style={styles.headerSubtitle}>Organize seu aprendizado por temas</Text>
         </View>
 
         {loading ? (
-            <ActivityIndicator size="large" color="#00C853" style={{marginTop: 50}} />
+          <ActivityIndicator size="large" color="#00C853" style={{ marginTop: 50 }} />
         ) : (
-            <View style={styles.listContainer}>
+          <View style={styles.listContainer}>
             {listaTrilhas.map((trilha) => {
-                
-                const percentual = calcularProgresso(trilha.id);
-                const proximaAtividade = descobrirProxima(trilha.id);
 
-                return (
-                    <TouchableOpacity 
-                    key={trilha.id} 
-                    style={styles.card}
-                    onPress={() => {
-                        // Verifica se é a trilha que já criamos as telas
-                        if (trilha.id === 'sustentabilidade') {
-                            router.push('/detalhe-trilha' as any);
-                        } else {
-                            alert(`A trilha de ${trilha.titulo} estará disponível em breve!`);
-                        }
-                    }}
-                    activeOpacity={0.9}
-                    >
-                    <View style={styles.cardTop}>
-                        <View style={[styles.iconBox, { backgroundColor: trilha.cor }]}>
-                           <Feather name={trilha.icone || 'box'} size={24} color="#FFF" />
-                        </View>
+              const percentual = calcularProgresso(trilha.id);
+              const proximaAtividade = descobrirProxima(trilha.id);
 
-                        <View style={styles.cardTexts}>
-                        <Text style={styles.cardTitle}>{trilha.titulo}</Text>
-                        <Text style={styles.cardSubtitle}>{trilha.subtitulo}</Text>
-                        </View>
+              return (
+                <TouchableOpacity
+                  key={trilha.id}
+                  style={styles.card}
+                  onPress={() => {
+                    // // Verifica se é a trilha que já criamos as telas
+                    // if (trilha.id === 'sustentabilidade') {
+                    router.push({
+                      pathname: '/detalhe-trilha',
+                      params: { id: trilha.id } 
+                    });
+                    // } else {
+                    //     alert(`A trilha de ${trilha.titulo} estará disponível em breve!`);
+                    // }
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <View style={styles.cardTop}>
+                    <View style={[styles.iconBox, { backgroundColor: trilha.cor }]}>
+                      <Feather name={trilha.icone || 'box'} size={24} color="#FFF" />
                     </View>
 
-                    <View style={styles.progressSection}>
-                        <View style={styles.progressLabels}>
-                        <Text style={styles.progressLabel}>Progresso da trilha</Text>
-                        <Text style={styles.progressPercent}>{Math.round(percentual * 100)}%</Text>
-                        </View>
-                        <View style={styles.progressBarBg}>
-                        <View 
-                            style={[
-                            styles.progressBarFill, 
-                            { width: `${percentual * 100}%`, backgroundColor: trilha.cor }
-                            ]} 
-                        />
-                        </View>
+                    <View style={styles.cardTexts}>
+                      <Text style={styles.cardTitle}>{trilha.titulo}</Text>
+                      <Text style={styles.cardSubtitle}>{trilha.subtitulo}</Text>
                     </View>
+                  </View>
 
-                    <View style={styles.cardFooter}>
-                        <View>
-                        <Text style={styles.footerLabel}>
-                            {percentual === 1 ? 'Status' : 'Próxima atividade'}
-                        </Text>
-                        <Text style={[
-                            styles.footerValue,
-                            percentual === 1 && { color: '#00C853' }
-                        ]}>
-                            {proximaAtividade}
-                        </Text>
-                        </View>
-                        <Feather name={percentual === 1 ? "check-circle" : "chevron-right"} size={20} color="#999" />
+                  <View style={styles.progressSection}>
+                    <View style={styles.progressLabels}>
+                      <Text style={styles.progressLabel}>Progresso da trilha</Text>
+                      <Text style={styles.progressPercent}>{Math.round(percentual * 100)}%</Text>
                     </View>
+                    <View style={styles.progressBarBg}>
+                      <View
+                        style={[
+                          styles.progressBarFill,
+                          { width: `${percentual * 100}%`, backgroundColor: trilha.cor }
+                        ]}
+                      />
+                    </View>
+                  </View>
 
-                    </TouchableOpacity>
-                );
+                  <View style={styles.cardFooter}>
+                    <View>
+                      <Text style={styles.footerLabel}>
+                        {percentual === 1 ? 'Status' : 'Próxima atividade'}
+                      </Text>
+                      <Text style={[
+                        styles.footerValue,
+                        percentual === 1 && { color: '#00C853' }
+                      ]}>
+                        {proximaAtividade}
+                      </Text>
+                    </View>
+                    <Feather name={percentual === 1 ? "check-circle" : "chevron-right"} size={20} color="#999" />
+                  </View>
+
+                </TouchableOpacity>
+              );
             })}
-            </View>
+          </View>
         )}
 
       </ScrollView>

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
@@ -10,73 +10,59 @@ export default function CertificacoesScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   
-  // Listas separadas para as seções
-  const [disponiveis, setDisponiveis] = useState<any[]>([]);
-  const [emAndamento, setEmAndamento] = useState<any[]>([]);
+  // Uma única lista para tudo (Carteira Unificada)
+  const [meusCertificados, setMeusCertificados] = useState<any[]>([]);
 
-  const carregarDados = async () => {
+  const carregarCarteira = async () => {
     setLoading(true);
     try {
-      // 1. Pega as trilhas do banco
+      // 1. Busca tudo
       const q = query(collection(db, "trilhas"), orderBy("ordem"));
       const querySnapshot = await getDocs(q);
-      
-      // 2. Pega o progresso do aluno
       const progressoGeral = await ProgressoService.getProgressoGeral();
 
-      const listaDisponiveis: any[] = [];
-      const listaPendentes: any[] = [];
-      
+      const lista: any[] = [];
 
       querySnapshot.forEach((doc) => {
         const trilha = { id: doc.id, ...doc.data() } as any;
         const status = progressoGeral[trilha.id];
 
-        // Se o aluno nunca começou essa trilha, não mostra nada
-        if (!status) return;
+        if (!status) return; // Se nem começou, ignora.
 
-        // --- LÓGICA DE SEPARAÇÃO ---
+        // --- LÓGICA DE STATUS ---
+        const desafioFeito = status.desafio === 'concluido';
+        const teoriaFeita = status.video === 'concluido' && status.quiz === 'concluido';
 
-        // CASO 1: PARTE TEÓRICA CONCLUÍDA (Gera Certificado Acadêmico)
-        if (status.video === 'concluido' && status.quiz === 'concluido') {
-          listaDisponiveis.push({
+        // 1. COMPLETO (Tem o certificado final)
+        if (desafioFeito) {
+          lista.push({
             id: trilha.id,
-            tipo: 'certificado',
+            status: 'concluido', // STATUS VERDE
             titulo: trilha.titulo,
-            subtitulo: `Universidade Federal • ${trilha.horasVideo + trilha.horasQuiz || 5}h`,
-            data: 'Emitido hoje',
-            corIcone: '#FFF9C4',
-            corIconeFundo: '#D4AF37'
+            descricao: trilha.parceiro ? `Validado por ${trilha.parceiro}` : 'Certificação Acadêmica',
+            data: 'Conquistado',
+            cor: trilha.cor || '#00C853',
+            icone: 'award'
           });
         } 
-        // Se começou mas não acabou a teoria, poderia entrar em pendente, 
-        // mas vamos focar no Desafio como pendência principal.
-
-        // CASO 2: DESAFIO EMPRESA
-        if (status.desafio === 'concluido') {
-           // Se concluiu, ganha a Badge na lista de disponíveis
-           listaDisponiveis.push({
-             id: trilha.id + '_badge',
-             tipo: 'badge',
-             titulo: `Badge: Consultor ${trilha.parceiro || 'Parceiro'}`,
-             subtitulo: 'Competência Prática Validada',
-             data: 'Verificado',
-             corIcone: '#E3F2FD',
-             corIconeFundo: '#1565C0'
-           });
-        } else if (status.video === 'concluido' && status.quiz === 'concluido' && status.desafio !== 'concluido') {
-           // Se fez a teoria mas FALTA o desafio -> Vai para "Em Validação"
-           listaPendentes.push({
-             id: trilha.id,
-             titulo: `Desafio Prático: ${trilha.titulo}`,
-             subtitulo: 'Aguardando envio ou validação',
-             status: 'Pendente'
-           });
+        // 2. PENDENTE (Fez a teoria, falta o desafio)
+        else if (teoriaFeita) {
+          lista.push({
+            id: trilha.id,
+            status: 'pendente', // STATUS AMARELO
+            titulo: trilha.titulo,
+            descricao: 'Aguardando envio do Desafio Prático',
+            data: 'Em andamento',
+            cor: '#FFC107',
+            icone: 'clock'
+          });
         }
       });
 
-      setDisponiveis(listaDisponiveis);
-      setEmAndamento(listaPendentes);
+      // Ordena: Pendentes primeiro (para lembrar o aluno), depois Concluídos
+      lista.sort((a, b) => (a.status === 'pendente' ? -1 : 1));
+      
+      setMeusCertificados(lista);
 
     } catch (e) {
       console.error(e);
@@ -87,75 +73,103 @@ export default function CertificacoesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      carregarDados();
+      carregarCarteira();
     }, [])
   );
+
+  // Ação ao clicar no card
+  const handlePress = (item: any) => {
+    if (item.status === 'concluido') {
+      // Se já acabou, vai ver o certificado para baixar/compartilhar
+      router.push({
+        pathname: '/certificado-digital',
+        params: { id: item.id }
+      });
+    } else {
+      // Se está pendente, manda ele lá pro desafio para terminar logo
+      Alert.alert(
+        "Quase lá! 🚧",
+        "Você já tem a base teórica. Complete o Desafio Prático para desbloquear este certificado.",
+        [
+            { text: "Ir para Desafio", onPress: () => router.push('/detalhe-trilha') },
+            { text: "Cancelar", style: "cancel" }
+        ]
+      );
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={carregarDados} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={carregarCarteira} />}
       >
         
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Microcertificações</Text>
-          <Text style={styles.headerSubtitle}>Suas conquistas verificadas</Text>
+          <Text style={styles.headerTitle}>Minha Carteira</Text>
+          <Text style={styles.headerSubtitle}>Competências e Habilidades Validadas</Text>
         </View>
 
-        {loading && <ActivityIndicator size="large" color="#00C853" />}
+        {loading && <ActivityIndicator size="large" color="#00C853" style={{marginTop: 20}} />}
 
-        {/* --- SEÇÃO 1: CONCLUÍDAS (Disponíveis) --- */}
-        <Text style={styles.sectionTitle}>✅ Disponíveis ({disponiveis.length})</Text>
-        
-        {disponiveis.length > 0 ? (
-           disponiveis.map((item, index) => (
-            <TouchableOpacity 
-              key={index}
-              style={styles.certCard}
-              // Passamos o ID e o Tipo para a tela de pré-visualização saber o que mostrar
-              onPress={() => router.push({
-                  pathname: '/certificado-digital',
-                  params: { id: item.id, tipo: item.tipo } 
-              })} 
-            >
-              <View style={[styles.certIconBg, { backgroundColor: item.corIcone }]}>
-                <Feather name={item.tipo === 'badge' ? "briefcase" : "award"} size={24} color={item.corIconeFundo} />
-              </View>
-              <View style={styles.certContent}>
-                <Text style={styles.certTitle}>{item.titulo}</Text>
-                <Text style={styles.certIssuer}>{item.subtitulo}</Text>
-                <Text style={styles.certDate}>{item.data}</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color="#CCC" />
-            </TouchableOpacity>
-           ))
-        ) : (
-           <Text style={styles.emptyText}>Nenhuma certificação emitida ainda.</Text>
+        {!loading && meusCertificados.length === 0 && (
+            <View style={styles.emptyState}>
+                <Feather name="folder" size={40} color="#DDD" />
+                <Text style={styles.emptyText}>Você ainda não possui certificações.</Text>
+            </View>
         )}
 
+        {/* LISTA UNIFICADA */}
+        {meusCertificados.map((item, index) => (
+          <TouchableOpacity 
+            key={index}
+            style={[
+                styles.card, 
+                item.status === 'pendente' && styles.cardPendente // Estilo diferente se pendente
+            ]}
+            onPress={() => handlePress(item)}
+            activeOpacity={0.7}
+          >
+            {/* Ícone Lateral */}
+            <View style={[
+                styles.iconBox, 
+                { backgroundColor: item.status === 'concluido' ? `${item.cor}20` : '#FFF8E1' } // Fundo clarinho dinâmico
+            ]}>
+              <Feather 
+                name={item.icone} 
+                size={24} 
+                color={item.status === 'concluido' ? item.cor : '#FFC107'} 
+              />
+            </View>
 
-        {/* --- SEÇÃO 2: EM ANDAMENTO (Bloqueadas) --- */}
-        <Text style={[styles.sectionTitle, {marginTop: 30}]}>⏳ Em Validação ({emAndamento.length})</Text>
-        
-        {emAndamento.length > 0 ? (
-           emAndamento.map((item, index) => (
-            <View key={index} style={[styles.certCard, styles.certCardLocked]}>
-              <View style={[styles.certIconBg, {backgroundColor: '#E0E0E0'}]}>
-                <Feather name="clock" size={24} color="#999" />
-              </View>
-              <View style={styles.certContent}>
-                <Text style={[styles.certTitle, {color: '#999'}]}>{item.titulo}</Text>
-                <Text style={styles.certIssuer}>{item.subtitulo}</Text>
-                <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{item.status}</Text>
-                </View>
+            {/* Textos */}
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{item.titulo}</Text>
+              <Text style={styles.cardDesc}>{item.descricao}</Text>
+              
+              {/* Badgezinha de Status */}
+              <View style={[
+                  styles.statusBadge, 
+                  { backgroundColor: item.status === 'concluido' ? '#E8F5E9' : '#FFF3E0' }
+              ]}>
+                  <Text style={[
+                      styles.statusText,
+                      { color: item.status === 'concluido' ? '#2E7D32' : '#EF6C00' }
+                  ]}>
+                      {item.data}
+                  </Text>
               </View>
             </View>
-           ))
-        ) : (
-           <Text style={styles.emptyText}>Nenhuma pendência ativa.</Text>
-        )}
+
+            {/* Seta indicando ação */}
+            <Feather 
+                name={item.status === 'concluido' ? "chevron-right" : "alert-circle"} 
+                size={20} 
+                color="#CCC" 
+            />
+
+          </TouchableOpacity>
+        ))}
 
       </ScrollView>
     </SafeAreaView>
@@ -168,28 +182,25 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 24, paddingTop: 40, marginBottom: 20 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#1A1A1A' },
   headerSubtitle: { fontSize: 14, color: '#757575', marginTop: 4 },
-  sectionTitle: { fontSize: 14, fontWeight: 'bold', color: '#666', marginLeft: 24, marginBottom: 10, textTransform: 'uppercase' },
-  
-  certCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    marginHorizontal: 20,
-    marginBottom: 15,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
+
+  card: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
+    marginHorizontal: 20, marginBottom: 15, padding: 16, borderRadius: 16,
+    borderWidth: 1, borderColor: '#F0F0F0',
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5, elevation: 2,
   },
-  certCardLocked: { backgroundColor: '#F9F9F9', opacity: 0.8 },
-  certIconBg: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  certContent: { flex: 1 },
-  certTitle: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-  certIssuer: { fontSize: 12, color: '#777', marginTop: 2 },
-  certDate: { fontSize: 10, color: '#D4AF37', fontWeight: 'bold', marginTop: 4 },
+  cardPendente: {
+    backgroundColor: '#FAFAFA', borderColor: '#EEE', opacity: 0.9
+  },
+
+  iconBox: { width: 50, height: 50, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  cardContent: { flex: 1 },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 2 },
+  cardDesc: { fontSize: 12, color: '#888', marginBottom: 8 },
   
-  statusBadge: { backgroundColor: '#E3F2FD', alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 4 },
-  statusText: { fontSize: 10, color: '#2196F3', fontWeight: '600' },
-  emptyText: { marginLeft: 24, color: '#999', fontStyle: 'italic', marginBottom: 10 }
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  statusText: { fontSize: 10, fontWeight: 'bold' },
+
+  emptyState: { alignItems: 'center', marginTop: 50, gap: 10 },
+  emptyText: { color: '#999', fontSize: 14 }
 });

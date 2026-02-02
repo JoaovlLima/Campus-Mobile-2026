@@ -8,6 +8,10 @@ export default function Config() {
     AdminService.resetarTudoECriarTrilhas();
   }
 
+  function handleCriarDesafio(){
+    AdminService.popularSomenteDesafios();
+  }
+
   return (
     <View
       style={{
@@ -21,6 +25,11 @@ export default function Config() {
       <Button
         title="ADMIN: Criar Trilhas"
         onPress={handleCriarTrilhas}
+      />
+
+      <Button
+        title="ADMIN: Criar Desafios"
+        onPress={handleCriarDesafio}
       />
     </View>
   );

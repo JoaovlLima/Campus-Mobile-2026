@@ -1,167 +1,211 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db } from '@/config/firebaseConfig';
 import { ProgressoService, EstadoTrilha } from '@/service/progresso';
 
 export default function DetalheTrilha() {
   const router = useRouter();
-  const [progresso, setProgresso] = useState<EstadoTrilha | null>(null);
+  
+  // 1. Recebe o ID da trilha (ex: 'sustentabilidade' ou 'tecnologia')
+  const params = useLocalSearchParams();
+  const trilhaId = params.id as string || 'sustentabilidade'; // Fallback se der erro
+
+  const [loading, setLoading] = useState(true);
+  const [trilhaData, setTrilhaData] = useState<any>(null); // Dados visuais (Título, Cor)
+  const [desafios, setDesafios] = useState<any[]>([]); // Lista de desafios do banco
+  const [progresso, setProgresso] = useState<EstadoTrilha | null>(null); // Progresso do user
 
   useFocusEffect(
     useCallback(() => {
-      const loadData = async () => {
-        // Busca só o progresso de sustentabilidade
-        const dados = await ProgressoService.getProgressoTrilha('sustentabilidade');
-        setProgresso(dados);
+      const carregarTudo = async () => {
+        setLoading(true);
+        try {
+          // A. Busca os dados visuais da Trilha (Título, Cor, Slug)
+          const docRef = doc(db, "trilhas", trilhaId);
+          const docSnap = await getDoc(docRef);
+          
+          if (!docSnap.exists()) {
+            Alert.alert("Erro", "Trilha não encontrada");
+            router.back();
+            return;
+          }
+          const dadosTrilha = docSnap.data();
+          setTrilhaData(dadosTrilha);
+
+          // B. Busca o Progresso do Usuário nessa trilha
+          const dadosProgresso = await ProgressoService.getProgressoTrilha(trilhaId);
+          setProgresso(dadosProgresso);
+
+          // C. Busca os Desafios vinculados a essa trilha (pelo SLUG/Tag)
+          // Ex: Se trilha.slug = 'esg', busca desafios com categoriaTrilha = 'esg'
+          if (dadosTrilha.slug) {
+            const q = query(collection(db, "desafios"), where("categoriaTrilha", "==", dadosTrilha.slug));
+            const querySnapshot = await getDocs(q);
+            const listaDesafios: any[] = [];
+            querySnapshot.forEach((d) => listaDesafios.push({ id: d.id, ...d.data() }));
+            setDesafios(listaDesafios);
+          }
+
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoading(false);
+        }
       };
-      loadData();
-    }, [])
+      
+      carregarTudo();
+    }, [trilhaId])
   );
 
-  // --- LÓGICA DE BLOQUEIO ---
-  // O Desafio só libera se Vídeo E Quiz estiverem concluídos
-  const isDesafioLiberado = progresso?.video === 'concluido' && progresso?.quiz === 'concluido';
+  // Lógica de Bloqueio (Teoria libera Prática)
+  const isTeoriaConcluida = progresso?.video === 'concluido' && progresso?.quiz === 'concluido';
 
-  const handlePressDesafio = () => {
-    if (isDesafioLiberado) {
-      router.push('/detalhe-desafio'); // Vai para o upload
-    } else {
-      Alert.alert(
-        "✋ Etapa Bloqueada",
-        "Para acessar o Desafio da Natura, você precisa primeiro concluir a fundamentação teórica (Vídeo e Quiz) da faculdade."
-      );
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    if (status === 'concluido') return <Feather name="check-circle" size={24} color="#00C853" />;
-    return <Feather name="circle" size={24} color="#CCC" />;
-  };
+  if (loading || !trilhaData) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#00C853" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       
-      {/* HEADER DA TRILHA */}
+      {/* HEADER DINÂMICO (Usa a cor do banco) */}
       <View style={styles.headerContainer}>
          <LinearGradient
-            colors={['#00C853', '#69F0AE']}
+            // Usa a cor da trilha ou um verde padrão
+            colors={[trilhaData.cor || '#00C853', '#FFFFFF']} 
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1.5 }} // Gradiente suave descendo
             style={styles.headerBackground}
          >
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <Feather name="arrow-left" size={24} color="#FFF" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Sustentabilidade</Text>
-            <Text style={styles.headerSubtitle}>Trilha Integrada • IES + Mercado</Text>
+            <Text style={styles.headerTitle}>{trilhaData.titulo}</Text>
+            <Text style={styles.headerSubtitle}>{trilhaData.subtitulo || 'Trilha de Competência'}</Text>
          </LinearGradient>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         
-        {/* --- BLOCO 1: FUNDAMENTAÇÃO (IES) --- */}
+        {/* --- BLOCO 1: FUNDAMENTAÇÃO (Padrão IES) --- */}
         <View style={styles.sectionHeader}>
            <Text style={styles.sectionTitle}>1. Fundamentação Teórica</Text>
-           <Text style={styles.sectionSubtitle}>Obrigatório pela Faculdade</Text>
+           <Text style={styles.sectionSubtitle}>Conteúdo Curado pela Faculdade</Text>
         </View>
 
-        {/* Card Vídeo */}
+        {/* Card Vídeo (Linka para o ID da trilha atual) */}
         <TouchableOpacity 
           style={styles.cardStandard}
-          onPress={() => router.push('/player-video')}
+          onPress={() => router.push({ pathname: '/player-video', params: { id: trilhaId } })}
         >
            <View style={styles.iconContainer}>
               <Feather name="video" size={20} color="#666" />
            </View>
            <View style={styles.cardContent}>
-              <Text style={styles.activityTitle}>Fundamentos da Ecologia</Text>
-              <Text style={styles.activityMeta}>Vídeo Aula • 2h</Text>
+              <Text style={styles.activityTitle}>Conteúdo Principal</Text>
+              <Text style={styles.activityMeta}>{trilhaData.conteudoLabel || 'Vídeo Aula'}</Text>
            </View>
-           {getStatusIcon(progresso?.video || 'bloqueado')}
+           {progresso?.video === 'concluido' ? 
+              <Feather name="check-circle" size={24} color={trilhaData.cor} /> : 
+              <Feather name="circle" size={24} color="#CCC" />
+           }
         </TouchableOpacity>
 
-        {/* Card Quiz */}
+        {/* Card Quiz (Linka para o ID da trilha atual) */}
         <TouchableOpacity 
           style={styles.cardStandard}
-          onPress={() => router.push('/tela-quiz')}
+          onPress={() => router.push({ pathname: '/tela-quiz', params: { id: trilhaId } })}
         >
            <View style={styles.iconContainer}>
               <Feather name="edit-3" size={20} color="#666" />
            </View>
            <View style={styles.cardContent}>
               <Text style={styles.activityTitle}>Validação de Conhecimento</Text>
-              <Text style={styles.activityMeta}>Quiz • 1h</Text>
+              <Text style={styles.activityMeta}>Quiz Avaliativo</Text>
            </View>
-           {getStatusIcon(progresso?.quiz || 'bloqueado')}
+           {progresso?.quiz === 'concluido' ? 
+              <Feather name="check-circle" size={24} color={trilhaData.cor} /> : 
+              <Feather name="circle" size={24} color="#CCC" />
+           }
         </TouchableOpacity>
 
 
-        {/* --- LINHA CONECTORA VISUAL --- */}
+        {/* --- CONECTOR VISUAL --- */}
         <View style={styles.connectorContainer}>
-           <View style={[styles.verticalLine, isDesafioLiberado && {backgroundColor: '#1565C0'}]} />
-           <View style={[styles.arrowDown, isDesafioLiberado && {borderTopColor: '#1565C0'}]} />
+           <View style={[styles.verticalLine, isTeoriaConcluida && {backgroundColor: trilhaData.cor}]} />
+           <Feather name="chevron-down" size={24} color={isTeoriaConcluida ? trilhaData.cor : "#DDD"} />
         </View>
 
 
-        {/* --- BLOCO 2: PRÁTICA (MERCADO) --- */}
+        {/* --- BLOCO 2: LISTA DE DESAFIOS (Dinâmico do Banco) --- */}
         <View style={styles.sectionHeader}>
-           <Text style={styles.sectionTitle}>2. Desafio Prático</Text>
-           <Text style={styles.sectionSubtitle}>Parceria Empresarial (Premium)</Text>
+           <Text style={styles.sectionTitle}>2. Aplicação Prática</Text>
+           <Text style={styles.sectionSubtitle}>Desafios de Empresas Parceiras</Text>
         </View>
 
-        {/* CARD DO DESAFIO (Muda visualmente se estiver bloqueado ou liberado) */}
-        <TouchableOpacity 
-          style={[styles.cardPartner, !isDesafioLiberado && styles.cardLocked]} 
-          onPress={handlePressDesafio}
-          activeOpacity={0.8}
-        >
-           {/* Badge de Parceiro */}
-           <View style={[styles.partnerBadge, !isDesafioLiberado && {backgroundColor: '#999'}]}>
-              <Text style={styles.partnerText}>
-                 {isDesafioLiberado ? 'DESBLOQUEADO' : 'BLOQUEADO'}
-              </Text>
-           </View>
+        {desafios.length > 0 ? (
+          desafios.map((desafio) => (
+            <TouchableOpacity 
+              key={desafio.id}
+              style={[styles.cardPartner, !isTeoriaConcluida && styles.cardLocked]} 
+              onPress={() => {
+                if (isTeoriaConcluida) {
+                  // Manda ID da trilha E dados do desafio para a próxima tela
+                  router.push({ 
+                    pathname: '/detalhe-desafio', 
+                    params: { id: trilhaId, titulo: desafio.titulo } 
+                  });
+                } else {
+                  Alert.alert("Bloqueado", "Conclua a teoria para liberar este desafio.");
+                }
+              }}
+              activeOpacity={0.8}
+            >
+               <View style={[styles.partnerBadge, !isTeoriaConcluida && {backgroundColor: '#999'}, isTeoriaConcluida && {backgroundColor: trilhaData.cor}]}>
+                  <Text style={styles.partnerText}>
+                     {isTeoriaConcluida ? 'DESBLOQUEADO' : 'BLOQUEADO'}
+                  </Text>
+               </View>
 
-           <View style={styles.row}>
-             <View style={[
-                styles.iconContainer, 
-                {backgroundColor: isDesafioLiberado ? '#E3F2FD' : '#EEE'}
-             ]}>
-                <Feather 
-                  name={isDesafioLiberado ? "briefcase" : "lock"} 
-                  size={20} 
-                  color={isDesafioLiberado ? "#1565C0" : "#999"} 
-                />
-             </View>
-             
-             <View style={styles.cardContent}>
-                <Text style={[styles.activityTitle, !isDesafioLiberado && {color: '#888'}]}>
-                   Desafio ESG Natura
-                </Text>
-                <Text style={styles.partnerName}>
-                   {isDesafioLiberado ? 'Oferecido por Natura & Co.' : 'Complete a etapa anterior'}
-                </Text>
-                
-                {isDesafioLiberado && (
-                   <View style={styles.tagReward}>
-                      <Feather name="award" size={12} color="#F9A825" />
-                      <Text style={styles.tagRewardText}>Gera Badge Premium</Text>
-                   </View>
-                )}
-             </View>
+               <View style={styles.row}>
+                 <View style={[styles.iconContainer, {backgroundColor: isTeoriaConcluida ? '#E3F2FD' : '#EEE'}]}>
+                    <Feather name="briefcase" size={20} color={isTeoriaConcluida ? "#1565C0" : "#999"} />
+                 </View>
+                 
+                 <View style={styles.cardContent}>
+                    <Text style={[styles.activityTitle, !isTeoriaConcluida && {color: '#888'}]}>
+                       {desafio.titulo}
+                    </Text>
+                    <Text style={[styles.partnerName, isTeoriaConcluida && {color: '#1565C0'}]}>
+                       {desafio.empresa}
+                    </Text>
+                 </View>
 
-             {/* Ícone de Status da Direita */}
-             {progresso?.desafio === 'concluido' ? (
-                <Feather name="check-circle" size={24} color="#00C853" />
-             ) : (
-                <Feather 
-                   name={isDesafioLiberado ? "chevron-right" : "lock"} 
-                   size={24} 
-                   color={isDesafioLiberado ? "#1565C0" : "#CCC"} 
-                />
-             )}
-           </View>
-        </TouchableOpacity>
+                 {/* Status Específico deste Desafio */}
+                 {progresso?.desafio === 'concluido' ? (
+                    <Feather name="check-circle" size={24} color={trilhaData.cor} />
+                 ) : (
+                    <Feather 
+                       name={isTeoriaConcluida ? "chevron-right" : "lock"} 
+                       size={24} 
+                       color={isTeoriaConcluida ? trilhaData.cor : "#CCC"} 
+                    />
+                 )}
+               </View>
+            </TouchableOpacity>
+          ))
+        ) : (
+          <View style={styles.emptyState}>
+             <Text style={styles.emptyText}>Nenhum desafio disponível para esta competência no momento.</Text>
+          </View>
+        )}
 
       </ScrollView>
     </View>
@@ -171,46 +215,32 @@ export default function DetalheTrilha() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FD' },
   headerContainer: { borderBottomLeftRadius: 20, borderBottomRightRadius: 20, overflow: 'hidden' },
-  headerBackground: { paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
-  backButton: { marginBottom: 10 },
-  headerTitle: { color: '#FFF', fontSize: 22, fontWeight: 'bold' },
-  headerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 14 },
+  headerBackground: { paddingTop: 60, paddingBottom: 30, paddingHorizontal: 20 },
+  backButton: { marginBottom: 15 },
+  headerTitle: { color: '#FFF', fontSize: 24, fontWeight: 'bold' },
+  headerSubtitle: { color: 'rgba(255,255,255,0.9)', fontSize: 14, marginTop: 4 },
   
-  sectionHeader: { marginBottom: 10, marginTop: 10 },
+  sectionHeader: { marginBottom: 15, marginTop: 10 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
   sectionSubtitle: { fontSize: 12, color: '#888', marginBottom: 5 },
 
-  // Card Padrão
-  cardStandard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
-    padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#EEE'
-  },
+  cardStandard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#EEE' },
   iconContainer: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F5F5F5', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   cardContent: { flex: 1 },
   activityTitle: { fontSize: 14, fontWeight: 'bold', color: '#333' },
   activityMeta: { fontSize: 12, color: '#888', marginTop: 2 },
 
-  // Conector Visual (Seta)
   connectorContainer: { alignItems: 'center', marginVertical: 5 },
-  verticalLine: { width: 2, height: 20, backgroundColor: '#DDD' },
-  arrowDown: { width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 6, borderStyle: 'solid', backgroundColor: 'transparent', borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#DDD' },
+  verticalLine: { width: 2, height: 15, backgroundColor: '#DDD' },
 
-  // Card Parceiro (Empresa)
-  cardPartner: {
-    backgroundColor: '#FFF', borderRadius: 12, marginBottom: 20, borderWidth: 1, borderColor: '#BBDEFB',
-    padding: 16, paddingTop: 24, elevation: 3, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity:0.1
-  },
-  cardLocked: {
-    backgroundColor: '#F5F5F5', borderColor: '#E0E0E0', elevation: 0
-  },
+  cardPartner: { backgroundColor: '#FFF', borderRadius: 12, marginBottom: 20, borderWidth: 1, borderColor: '#BBDEFB', padding: 16, paddingTop: 28, elevation: 3 },
+  cardLocked: { backgroundColor: '#F5F5F5', borderColor: '#E0E0E0', elevation: 0 },
   row: { flexDirection: 'row', alignItems: 'center' },
-  partnerBadge: {
-    position: 'absolute', top: 0, left: 16, backgroundColor: '#1565C0',
-    paddingHorizontal: 8, paddingVertical: 2, borderBottomLeftRadius: 4, borderBottomRightRadius: 4,
-  },
-  partnerText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-  partnerName: { color: '#1565C0', fontSize: 12, fontWeight: '600', marginBottom: 4 },
   
-  tagReward: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF9C4', alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  tagRewardText: { fontSize: 10, color: '#F9A825', fontWeight: 'bold' }
+  partnerBadge: { position: 'absolute', top: 0, left: 16, paddingHorizontal: 8, paddingVertical: 2, borderBottomLeftRadius: 4, borderBottomRightRadius: 4 },
+  partnerText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+  partnerName: { color: '#999', fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  
+  emptyState: { padding: 20, alignItems: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: '#CCC', borderRadius: 10 },
+  emptyText: { color: '#999', textAlign: 'center' }
 });
