@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, Button } from 'react-native';
 import { AdminService } from '@/service/admin';
+import React from 'react';
+import { Button, Text, View } from 'react-native';
 
 export default function Config() {
 
@@ -20,7 +20,7 @@ export default function Config() {
         alignItems: 'center'
       }}
     >
-      <Text>Tela de Perfil</Text>
+      <Text>Tela de Config</Text>
 
       <Button
         title="ADMIN: Criar Trilhas"

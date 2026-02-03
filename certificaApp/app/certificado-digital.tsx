@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Share, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { Alert, SafeAreaView, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function CertificadoDigital() {
   const router = useRouter();
@@ -14,7 +14,7 @@ export default function CertificadoDigital() {
         message: 'Confira minha nova microcertificação em Sustentabilidade validada via Blockchain! 🎓 #Certifica+ #CampusMobile',
       });
     } catch (error) {
-      Alert.alert("Error: "+error);
+      Alert.alert("Erro", error instanceof Error ? error.message : "Não foi possível compartilhar.");
     }
   };
 

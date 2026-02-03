@@ -1,22 +1,19 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
-import { WebView } from 'react-native-webview'; // O componente que roda o YouTube
-import { useRouter } from 'expo-router';
+import { ProgressoService } from '@/service/progresso';
 import { Feather } from '@expo/vector-icons';
-import { ProgressoService } from '@/service/progresso'; // Chama o seu banco
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 
 export default function PlayerVideo() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const trilhaId = params.id ?? 'sustentabilidade';
   const [loading, setLoading] = useState(false);
 
   const handleConcluir = async () => {
     setLoading(true);
-    
-    // AGORA PASSAMOS: 
-    // 1. O ID da trilha ('sustentabilidade')
-    // 2. A etapa ('video')
-    // 3. As horas que vale (2 horas - isso poderia vir do banco, mas hardcoded no MVP é ok)
-    await ProgressoService.concluirEtapa('sustentabilidade', 'video', 0);
+    await ProgressoService.concluirEtapa(trilhaId, 'video', 0);
     
     setLoading(false);
     router.back();

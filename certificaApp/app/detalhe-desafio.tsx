@@ -1,44 +1,78 @@
+import { db } from '@/config/firebaseConfig';
+import { ProgressoService } from '@/service/progresso';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import React, { useState, useEffect } from 'react'; // <--- Adicione useEffect
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import { ProgressoService } from '@/service/progresso';
-import { doc, getDoc } from 'firebase/firestore'; // <--- Importe o Firestore
-import { db } from '@/config/firebaseConfig'; // <--- Importe o banco
+import * as Linking from 'expo-linking';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { doc, getDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+interface DadosDesafio {
+  titulo?: string;
+  empresa?: string;
+  descricao?: string;
+  recompensa?: string;
+  nivel?: string;
+  documentoUrl?: string;
+  documentoTitulo?: string;
+}
 
 export default function DetalheDesafio() {
   const router = useRouter();
-  const params = useLocalSearchParams(); 
-  
-  // ID da trilha (ex: 'sustentabilidade')
-  const trilhaId = params.id as string || 'sustentabilidade'; 
-  const tituloDesafio = params.titulo as string || 'Desafio Prático';
+  const params = useLocalSearchParams<{ id?: string; desafioId?: string; titulo?: string }>();
+
+  const trilhaId = params.id ?? 'sustentabilidade';
+  const desafioId = params.desafioId;
+  const tituloDesafio = params.titulo ?? 'Desafio Prático';
 
   const [link, setLink] = useState('');
   const [enviando, setEnviando] = useState(false);
-  
-  // NOVO ESTADO: Para guardar as horas que vierem do banco
-  const [horasRecompensa, setHorasRecompensa] = useState(0); 
+  const [horasRecompensa, setHorasRecompensa] = useState(0);
+  const [desafio, setDesafio] = useState<DadosDesafio | null>(null);
+  const [carregandoDesafio, setCarregandoDesafio] = useState(!!desafioId);
 
-  // --- NOVA BUSCA ---
-  // Busca quanto vale essa trilha assim que a tela abre
+  // Busca horas da trilha e dados completos do desafio (documento da empresa)
   useEffect(() => {
-    const buscarHoras = async () => {
+    const carregar = async () => {
       try {
-        const docRef = doc(db, "trilhas", trilhaId);
-        const docSnap = await getDoc(docRef);
+        const [trilhaSnap, desafioSnap] = await Promise.all([
+          getDoc(doc(db, 'trilhas', trilhaId)),
+          desafioId ? getDoc(doc(db, 'desafios', desafioId)) : null,
+        ]);
 
-        if (docSnap.exists()) {
-          // Pega o campo 'horasGanha' do banco
-          setHorasRecompensa(docSnap.data().horasGanha || 0);
+        if (trilhaSnap.exists()) {
+          setHorasRecompensa(trilhaSnap.data().horasGanha ?? 0);
+        }
+        if (desafioSnap?.exists()) {
+          setDesafio(desafioSnap.data() as DadosDesafio);
         }
       } catch (error) {
-        console.log("Erro ao buscar horas da trilha", error);
+        console.log('Erro ao carregar dados:', error);
+      } finally {
+        setCarregandoDesafio(false);
       }
     };
-    buscarHoras();
-  }, [trilhaId]);
+    carregar();
+  }, [trilhaId, desafioId]);
+
+  const handleBaixarDocumento = async () => {
+    const url = desafio?.documentoUrl;
+    if (!url) {
+      Alert.alert('Documento indisponível', 'Este desafio ainda não possui documento para download.');
+      return;
+    }
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Erro', 'Não foi possível abrir o documento.');
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível abrir o documento. Verifique sua conexão.');
+    }
+  };
 
   const handleEnviar = async () => {
     if (link.length < 3) {
@@ -115,6 +149,53 @@ export default function DetalheDesafio() {
         </LinearGradient>
 
         <View style={styles.body}>
+          {/* Documento do Desafio (brief da empresa) */}
+          {carregandoDesafio ? (
+            <View style={styles.docCard}>
+              <ActivityIndicator size="small" color="#2B7FFF" />
+              <Text style={styles.docLoadingText}>Carregando detalhes do desafio...</Text>
+            </View>
+          ) : desafio ? (
+            <View style={styles.docCard}>
+              <View style={styles.docHeader}>
+                <View style={styles.docIconBox}>
+                  <Feather name="file-text" size={24} color="#2B7FFF" />
+                </View>
+                <View style={styles.docHeaderText}>
+                  <Text style={styles.docLabel}>Documento do Desafio</Text>
+                  <Text style={styles.docEmpresa}>{desafio.empresa ?? 'Parceiro'}</Text>
+                </View>
+              </View>
+              <Text style={styles.docTitle}>{desafio.titulo ?? tituloDesafio}</Text>
+              {desafio.descricao ? (
+                <Text style={styles.docDescricao}>{desafio.descricao}</Text>
+              ) : null}
+              <View style={styles.docMeta}>
+                {desafio.nivel ? (
+                  <View style={styles.docBadge}>
+                    <Feather name="bar-chart-2" size={12} color="#666" />
+                    <Text style={styles.docBadgeText}>{desafio.nivel}</Text>
+                  </View>
+                ) : null}
+                {desafio.recompensa ? (
+                  <View style={[styles.docBadge, styles.docBadgeReward]}>
+                    <Feather name="award" size={12} color="#2B7FFF" />
+                    <Text style={styles.docBadgeTextReward}>{desafio.recompensa}</Text>
+                  </View>
+                ) : null}
+              </View>
+              {desafio.documentoUrl ? (
+                <TouchableOpacity style={styles.docDownloadButton} onPress={handleBaixarDocumento} activeOpacity={0.8}>
+                  <Feather name="download" size={20} color="#2B7FFF" />
+                  <Text style={styles.docDownloadText}>
+                    {desafio.documentoTitulo ?? 'Baixar documento do desafio (PDF)'}
+                  </Text>
+                  <Feather name="external-link" size={16} color="#2B7FFF" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={styles.submissionCard}>
             <Text style={styles.submissionLabel}>Cole o link do seu projeto</Text>
             <Text style={styles.submissionHint}>Github, Drive, Figma ou LinkedIn</Text>
@@ -175,6 +256,63 @@ const styles = StyleSheet.create({
   title: { color: '#FFF', fontSize: 24, fontWeight: 'bold', marginBottom: 5 },
   partner: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
   body: { padding: 24, marginTop: -30 },
+  docCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2B7FFF',
+  },
+  docHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  docIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#E8F0FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  docHeaderText: { flex: 1 },
+  docLabel: { fontSize: 11, color: '#888', textTransform: 'uppercase', fontWeight: '600', letterSpacing: 0.5 },
+  docEmpresa: { fontSize: 14, color: '#2B7FFF', fontWeight: 'bold', marginTop: 2 },
+  docTitle: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A', marginBottom: 12 },
+  docDescricao: { fontSize: 15, color: '#444', lineHeight: 22, marginBottom: 14 },
+  docMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  docBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  docBadgeText: { fontSize: 12, color: '#666', fontWeight: '500' },
+  docBadgeReward: { backgroundColor: '#E8F0FE' },
+  docBadgeTextReward: { fontSize: 12, color: '#2B7FFF', fontWeight: '600' },
+  docDownloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#E8F0FE',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2B7FFF',
+    borderStyle: 'dashed',
+  },
+  docDownloadText: { fontSize: 14, color: '#2B7FFF', fontWeight: '600' },
+  docLoadingText: { fontSize: 14, color: '#888', marginTop: 8 },
   submissionCard: { backgroundColor: '#FFF', borderRadius: 20, padding: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
   submissionLabel: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 4 },
   submissionHint: { fontSize: 12, color: '#999', marginBottom: 15 },

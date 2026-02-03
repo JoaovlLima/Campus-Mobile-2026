@@ -4,8 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-// ⚠️ CONFIRA: Sua pasta é 'service' (singular) ou 'services' (plural)? Ajuste aqui se precisar.
-import { ProgressoService } from '../service/progresso'; 
 
 export const unstable_settings = {
   anchor: '(tabs)',

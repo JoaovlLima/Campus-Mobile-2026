@@ -11,7 +11,7 @@ export const AdminService = {
       subtitulo: 'Trilha Oficial Campus Mobile',
       cor: '#00C853',
       icone: 'globe',
-      // DEFININDO VALORES DE HORAS AQUI:
+      slug: 'esg', // Conecta com desafios categoriaTrilha: 'esg'
       horasGanha: 10 // O projeto da empresa vale 10h
     });
 
@@ -23,6 +23,7 @@ export const AdminService = {
       subtitulo: 'IA e Futuro',
       cor: '#2B7FFF',
       icone: 'cpu',
+      slug: 'tech', // Conecta com desafios categoriaTrilha: 'tech'
       horasGanha: 20
     });
 
@@ -43,10 +44,12 @@ export const AdminService = {
     batch.set(desafioNatura, {
       titulo: "Logística Reversa Amazônia",
       empresa: "Natura & Co.",
-      categoriaTrilha: "esg", // <--- O IMPORTANTE: Conecta com a trilha ESG
+      categoriaTrilha: "esg",
       descricao: "Desenvolva um sistema de pontos de coleta comunitária para recolher embalagens em regiões de difícil acesso.",
       recompensa: "Badge Consultor Natura",
-      nivel: "Intermediário"
+      nivel: "Intermediário",
+      documentoUrl: "https://www.africau.edu/images/default/sample.pdf",
+      documentoTitulo: "Brief Natura - Logística Reversa (PDF)"
     });
 
     // Desafio Ambev
@@ -54,10 +57,12 @@ export const AdminService = {
     batch.set(desafioAmbev, {
       titulo: "Gestão Hídrica Industrial",
       empresa: "Ambev",
-      categoriaTrilha: "esg", // <--- Conecta com a trilha ESG
+      categoriaTrilha: "esg",
       descricao: "Proponha uma tecnologia de reuso de água na lavagem de garrafas retornáveis.",
       recompensa: "Badge Guardião da Água",
-      nivel: "Avançado"
+      nivel: "Avançado",
+      documentoUrl: "https://www.africau.edu/images/default/sample.pdf",
+      documentoTitulo: "Brief Ambev - Gestão Hídrica (PDF)"
     });
 
     // ---------------------------------------------------------
@@ -69,10 +74,12 @@ export const AdminService = {
     batch.set(desafioIfood, {
       titulo: "Otimização de Rotas com IA",
       empresa: "iFood",
-      categoriaTrilha: "tech", // <--- Conecta com a trilha TECH
+      categoriaTrilha: "tech",
       descricao: "Utilize algoritmos genéticos para reduzir em 10% o tempo de entrega em dias de chuva.",
       recompensa: "Badge iFood Tech",
-      nivel: "Avançado"
+      nivel: "Avançado",
+      documentoUrl: "https://www.africau.edu/images/default/sample.pdf",
+      documentoTitulo: "Brief iFood - Rotas com IA (PDF)"
     });
 
     // Desafio Nubank
@@ -80,10 +87,12 @@ export const AdminService = {
     batch.set(desafioNu, {
       titulo: "Detecção de Fraudes Pix",
       empresa: "Nubank",
-      categoriaTrilha: "tech", // <--- Conecta com a trilha TECH
+      categoriaTrilha: "tech",
       descricao: "Analise o dataset de transações e crie um padrão de alerta para movimentações suspeitas.",
       recompensa: "Badge Data Science Nu",
-      nivel: "Intermediário"
+      nivel: "Intermediário",
+      documentoUrl: "https://www.africau.edu/images/default/sample.pdf",
+      documentoTitulo: "Brief Nubank - Detecção de Fraudes (PDF)"
     });
 
     // Envia tudo pro banco de uma vez

@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { db } from '@/config/firebaseConfig';
+import { EstadoTrilha, ProgressoService } from '@/service/progresso';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '@/config/firebaseConfig';
-import { ProgressoService, EstadoTrilha } from '@/service/progresso';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function DetalheTrilha() {
   const router = useRouter();
@@ -58,7 +58,7 @@ export default function DetalheTrilha() {
       };
       
       carregarTudo();
-    }, [trilhaId])
+    }, [trilhaId, router])
   );
 
   // Lógica de Bloqueio (Teoria libera Prática)
@@ -157,10 +157,9 @@ export default function DetalheTrilha() {
               style={[styles.cardPartner, !isTeoriaConcluida && styles.cardLocked]} 
               onPress={() => {
                 if (isTeoriaConcluida) {
-                  // Manda ID da trilha E dados do desafio para a próxima tela
-                  router.push({ 
-                    pathname: '/detalhe-desafio', 
-                    params: { id: trilhaId, titulo: desafio.titulo } 
+                  router.push({
+                    pathname: '/detalhe-desafio',
+                    params: { id: trilhaId, desafioId: desafio.id, titulo: desafio.titulo }
                   });
                 } else {
                   Alert.alert("Bloqueado", "Conclua a teoria para liberar este desafio.");

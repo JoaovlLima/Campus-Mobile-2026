@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Alert, Modal } from 'react-native';
-import { useRouter } from 'expo-router';
+import { ProgressoService } from '@/service/progresso';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ProgressoService } from '@/service/progresso';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React from 'react';
+import { Alert, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function TelaQuiz() {
   const router = useRouter();
-  
+  const params = useLocalSearchParams<{ id?: string }>();
+  const trilhaId = params.id ?? 'sustentabilidade';
+
   const handleAnswer = async (isCorrect: boolean) => {
     if (isCorrect) {
-      // Passamos: trilha 'sustentabilidade', etapa 'quiz', ganha 1 hora
-      await ProgressoService.concluirEtapa('sustentabilidade', 'quiz', 0);
+      await ProgressoService.concluirEtapa(trilhaId, 'quiz', 0);
       
       Alert.alert(
         "Parabéns! 🎯",

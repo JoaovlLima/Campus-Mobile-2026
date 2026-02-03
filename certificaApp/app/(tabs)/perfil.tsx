@@ -1,13 +1,12 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, Alert, RefreshControl } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/config/firebaseConfig';
 import { ID_USUARIO_ATUAL } from '@/service/progresso';
+import { Feather } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import React, { useCallback, useState } from 'react';
+import { Alert, Image, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function PerfilScreen() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   // Estado do Usuário
@@ -81,7 +80,7 @@ export default function PerfilScreen() {
 
               Alert.alert("Resetado!", "O app está pronto para uma nova demonstração.");
               carregarPerfil(); // Recarrega a tela
-            } catch (e) {
+            } catch {
               Alert.alert("Erro", "Não foi possível resetar.");
             }
           }
